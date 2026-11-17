@@ -1,0 +1,27 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data & logs (mounted as volumes)
+data/
+*.log
+
+# Dev / IDE
+.env.local
+.git/
+.gitignore
+*.md
+!requirements.txt
+
+# Test artifacts
+htmlcov/
+.coverage
+

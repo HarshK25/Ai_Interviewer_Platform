@@ -1,0 +1,129 @@
+services:
+  # ── FastAPI Application ───────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ai_interviewer_api
+    ports:
+      - "8001:8000"          # host 8001 → container 8000 (avoids OMS conflict)
+    env_file: .env
+    environment:
+      # Override DB/Redis URLs to point at sibling containers (not localhost)
+      DATABASE_URL: postgresql+asyncpg://postgres:62635494@postgres:5432/ai_interviewer
+      SYNC_DATABASE_URL: postgresql://postgres:62635494@postgres:5432/ai_interviewer
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/chroma_db:/app/data/chroma_db   # persist ChromaDB embeddings
+      - ./app:/app/app                           # hot-reload source changes
+      - ./scripts:/app/scripts                   # live script changes (no rebuild needed)
+    networks:
+      - ai_interviewer_net
+    restart: unless-stopped
+
+  # ── Celery Worker — Scoring ───────────────────────────────────────────────
+  worker-scoring:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: ai_interviewer_worker_scoring
+    command: celery -A app.tasks.celery_app worker -Q scoring -c 4 --loglevel=info
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:62635494@postgres:5432/ai_interviewer
+      SYNC_DATABASE_URL: postgresql://postgres:62635494@postgres:5432/ai_interviewer
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./data/chroma_db:/app/data/chroma_db
+    networks:
+      - ai_interviewer_net
+    restart: unless-stopped
+
+  # ── Celery Worker — Email & PDF ───────────────────────────────────────────
+  worker-email:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: ai_interviewer_worker_email
+    command: celery -A app.tasks.celery_app worker -Q email,pdf -c 2 --loglevel=info
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:62635494@postgres:5432/ai_interviewer
+      SYNC_DATABASE_URL: postgresql://postgres:62635494@postgres:5432/ai_interviewer
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - ai_interviewer_net
+    restart: unless-stopped
+
+  # ── Celery Flower Dashboard ───────────────────────────────────────────────
+  flower:
+    image: mher/flower:2.0
+    container_name: ai_interviewer_flower
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      FLOWER_PORT: "5555"
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    depends_on:
+      - redis
+    networks:
+      - ai_interviewer_net
+    restart: unless-stopped
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai_interviewer_postgres
+    environment:
+      POSTGRES_DB: ai_interviewer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "62635494"
+    ports:
+      - "5433:5432"          # host 5433 → container 5432 (avoids OMS conflict)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai_interviewer_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_interviewer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ai_interviewer_redis
+    ports:
+      - "6380:6379"          # host 6380 → container 6379 (avoids OMS conflict)
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai_interviewer_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ai_interviewer_net:
+    driver: bridge

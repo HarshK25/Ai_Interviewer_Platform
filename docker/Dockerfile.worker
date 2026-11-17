@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libpq-dev \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# Upgrade pip only — keep setuptools pinned in requirements
+RUN pip install --upgrade pip
+# Install all dependencies (faster-whisper has pre-built wheels — no compilation)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download sentence-transformers embedding model
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
+COPY . .

@@ -1,0 +1,50 @@
+{
+  "software_engineer": [
+    {"text": "Tell me about a time you had to debug a difficult production issue. Walk me through your process.", "question_type": "behavioral", "difficulty": "medium", "category": "debugging"},
+    {"text": "Explain the difference between REST and GraphQL. When would you choose one over the other?", "question_type": "technical", "difficulty": "medium", "category": "api_design"},
+    {"text": "How do you approach designing a system that needs to scale to millions of users?", "question_type": "technical", "difficulty": "hard", "category": "system_design"},
+    {"text": "Describe a time you had to refactor a large codebase. What was your strategy?", "question_type": "behavioral", "difficulty": "medium", "category": "code_quality"},
+    {"text": "What is the CAP theorem and how does it affect your database choice?", "question_type": "technical", "difficulty": "hard", "category": "distributed_systems"},
+    {"text": "How do you ensure code quality in a team setting?", "question_type": "behavioral", "difficulty": "easy", "category": "teamwork"},
+    {"text": "Explain the SOLID principles with a real example from your work.", "question_type": "technical", "difficulty": "medium", "category": "design_patterns"},
+    {"text": "How would you design a rate limiter for an API?", "question_type": "technical", "difficulty": "hard", "category": "system_design"},
+    {"text": "Describe a situation where you had to make a technical decision with incomplete information.", "question_type": "situational", "difficulty": "medium", "category": "decision_making"},
+    {"text": "What's the difference between a process and a thread? When would you use each?", "question_type": "technical", "difficulty": "medium", "category": "os_concepts"}
+  ],
+  "data_scientist": [
+    {"text": "Walk me through how you would approach a new machine learning problem from scratch.", "question_type": "technical", "difficulty": "medium", "category": "ml_process"},
+    {"text": "Explain overfitting and how you prevent it in your models.", "question_type": "technical", "difficulty": "easy", "category": "ml_concepts"},
+    {"text": "Describe a data science project where your model failed in production. What did you learn?", "question_type": "behavioral", "difficulty": "hard", "category": "failure_learning"},
+    {"text": "How do you handle class imbalance in a classification problem?", "question_type": "technical", "difficulty": "medium", "category": "ml_techniques"},
+    {"text": "What metrics would you use to evaluate a recommendation system?", "question_type": "technical", "difficulty": "hard", "category": "metrics"},
+    {"text": "How do you communicate model results to non-technical stakeholders?", "question_type": "behavioral", "difficulty": "medium", "category": "communication"},
+    {"text": "Explain the bias-variance tradeoff with an example.", "question_type": "technical", "difficulty": "medium", "category": "ml_concepts"},
+    {"text": "How would you detect and handle data drift in production?", "question_type": "technical", "difficulty": "hard", "category": "mlops"},
+    {"text": "Describe a situation where you had to clean a very messy dataset.", "question_type": "behavioral", "difficulty": "easy", "category": "data_cleaning"},
+    {"text": "What is feature engineering and how does it impact model performance?", "question_type": "technical", "difficulty": "medium", "category": "feature_engineering"}
+  ],
+  "product_manager": [
+    {"text": "How do you prioritize features when you have limited engineering resources?", "question_type": "technical", "difficulty": "medium", "category": "prioritization"},
+    {"text": "Tell me about a product decision you made that turned out to be wrong. How did you handle it?", "question_type": "behavioral", "difficulty": "hard", "category": "failure_learning"},
+    {"text": "How do you gather and validate user requirements?", "question_type": "technical", "difficulty": "easy", "category": "requirements"},
+    {"text": "Describe how you would define success metrics for a new feature launch.", "question_type": "technical", "difficulty": "medium", "category": "metrics"},
+    {"text": "How do you handle disagreements between engineering and design teams?", "question_type": "situational", "difficulty": "medium", "category": "conflict_resolution"},
+    {"text": "Walk me through how you would build a product roadmap from scratch.", "question_type": "technical", "difficulty": "medium", "category": "roadmapping"},
+    {"text": "How do you decide when a product is ready to ship?", "question_type": "technical", "difficulty": "medium", "category": "quality"},
+    {"text": "Describe your approach to running A/B tests.", "question_type": "technical", "difficulty": "medium", "category": "experimentation"},
+    {"text": "How do you balance technical debt against new feature development?", "question_type": "situational", "difficulty": "hard", "category": "strategy"},
+    {"text": "Tell me about a time you had to kill a feature you were excited about.", "question_type": "behavioral", "difficulty": "hard", "category": "decision_making"}
+  ],
+  "backend_engineer": [
+    {"text": "How do you design a microservices architecture? What are the trade-offs?", "question_type": "technical", "difficulty": "hard", "category": "architecture"},
+    {"text": "Explain database indexing. When should you add an index?", "question_type": "technical", "difficulty": "medium", "category": "databases"},
+    {"text": "How would you implement authentication in a distributed system?", "question_type": "technical", "difficulty": "hard", "category": "security"},
+    {"text": "Describe a time you optimized a slow API endpoint.", "question_type": "behavioral", "difficulty": "medium", "category": "performance"},
+    {"text": "What is eventual consistency? When is it acceptable?", "question_type": "technical", "difficulty": "hard", "category": "distributed_systems"},
+    {"text": "How do you handle database migrations in a zero-downtime deployment?", "question_type": "technical", "difficulty": "hard", "category": "devops"},
+    {"text": "Explain the difference between synchronous and asynchronous processing. When do you use each?", "question_type": "technical", "difficulty": "medium", "category": "async"},
+    {"text": "How do you design an API for backwards compatibility?", "question_type": "technical", "difficulty": "medium", "category": "api_design"},
+    {"text": "Describe how you would implement a distributed cache.", "question_type": "technical", "difficulty": "hard", "category": "caching"},
+    {"text": "Tell me about a time you had to deal with a security vulnerability in production.", "question_type": "behavioral", "difficulty": "hard", "category": "security"}
+  ]
+}
