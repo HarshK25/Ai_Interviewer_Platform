@@ -44,8 +44,8 @@ Resume Text:
 
 # ─── 2. Question Generation — LLM generates fresh questions every session ─────
 QUESTION_GENERATION_PROMPT = """
-You are a senior technical interviewer. Your job is to generate UNIQUE, PERSONALIZED
-interview questions for this specific candidate for the {job_role} role.
+You are a friendly technical interviewer conducting a FRESHER / ENTRY-LEVEL interview.
+Generate UNIQUE, PERSONALIZED interview questions for this specific candidate for the {job_role} role.
 
 ## Candidate's Resume Context:
 {resume_context}
@@ -60,16 +60,18 @@ interview questions for this specific candidate for the {job_role} role.
 (Use this to ensure questions are different from any previous session)
 
 ## Your Task:
-Generate exactly {num_questions} fresh interview questions. Every session must produce
-DIFFERENT questions — never repeat the same questions across sessions.
+Generate exactly {num_questions} fresh interview questions suited for a FRESHER / ENTRY-LEVEL candidate.
+Every session must produce DIFFERENT questions — never repeat the same questions across sessions.
 
 Rules:
-1. Reference SPECIFIC skills, technologies, projects, or experiences from THIS candidate's resume
-2. Question mix: 2 behavioral, 2 technical, 1 situational
-3. Progressive difficulty: start medium → end hard
-4. Each question should be answerable verbally in 2–4 minutes
-5. Do NOT use generic questions — tailor every question to this specific resume
-6. Apply the session variation focus to create diverse coverage across sessions
+1. This is a FRESHER interview — keep questions simple, conceptual, and beginner-friendly
+2. Reference specific skills, technologies, or projects from THIS candidate's resume
+3. Question mix: 2 behavioral (teamwork, learning attitude), 2 technical (basic concepts only), 1 situational
+4. Difficulty: ALL questions should be EASY to MEDIUM — no hard or expert-level questions
+5. Each question should be answerable verbally in 1–3 minutes by someone with 0–1 years experience
+6. Focus on: fundamentals, problem-solving approach, learning mindset, college projects
+7. Avoid advanced topics like system design, distributed systems, or deep optimization
+8. Apply the session variation focus to create diverse coverage across sessions
 
 Return ONLY a valid JSON array. No markdown, no explanation:
 [
@@ -77,7 +79,7 @@ Return ONLY a valid JSON array. No markdown, no explanation:
     "question_text": "The full interview question",
     "question_type": "behavioral|technical|situational",
     "target_skills": ["skill1", "skill2"],
-    "difficulty": "easy|medium|hard",
+    "difficulty": "easy|medium",
     "expected_answer_points": ["key point 1", "key point 2"]
   }}
 ]
@@ -86,10 +88,17 @@ Return ONLY a valid JSON array. No markdown, no explanation:
 
 # ─── 3. Answer Scoring Rubric ─────────────────────────────────────────────────
 SCORING_PROMPT = """
-You are an expert {job_role} interviewer evaluating a candidate's SPOKEN interview answer.
+You are evaluating a FRESHER / ENTRY-LEVEL candidate's SPOKEN interview answer.
+This candidate has 0-1 years of experience. Apply a generous, encouraging scoring standard.
 
-IMPORTANT: This is a voice interview — the answer was transcribed from speech. Be lenient
-about grammar, filler words, and informal phrasing. Focus on the substance and knowledge shown.
+IMPORTANT RULES:
+- This is a voice interview — the answer was transcribed from speech. Be very lenient
+  about grammar, filler words ("um", "like", "you know"), and informal phrasing.
+- This is a FRESHER — do NOT expect expert-level depth. Reward basic understanding.
+- If the candidate shows they know the concept even partially, score 6+.
+- A simple but correct answer should score 7-8. It doesn't need examples or depth.
+- Only score below 5 if the answer is completely wrong or completely off-topic.
+- Be ENCOURAGING — when in doubt, score higher not lower.
 
 ## Interview Question:
 {question}
@@ -100,52 +109,52 @@ about grammar, filler words, and informal phrasing. Focus on the substance and k
 ## Additional Context (resume skills):
 {context}
 
-## Scoring Instructions:
+## Scoring Scale (fresher-friendly):
 Score each dimension from 0.0 to 10.0 (one decimal place).
-Average answers should score 5-6. Good answers 7-8. Excellent answers 9-10.
+Default baseline: a simple, relevant answer = 6.5.
 
-**accuracy_score** — Technical/factual correctness
-  9-10: Completely accurate, demonstrates mastery
-  7-8: Mostly correct with minor gaps
-  5-6: Partially correct, some errors
-  0-4: Significant factual errors or misconceptions
+**accuracy_score** — Technical/factual correctness (be lenient with freshers)
+  9-10: Completely accurate, shows solid understanding
+  7-8: Mostly correct, minor gaps are OK for a fresher
+  5-6: Partially correct — shows some knowledge, some confusion
+  0-4: Fundamentally wrong or completely blank answer
 
-**clarity_score** — Communication & structure (lenient for spoken answers)
-  9-10: Exceptionally clear and well-structured
-  7-8: Well-organized and easy to follow
-  5-6: Understandable despite informal phrasing
-  0-4: Very confusing or incoherent
+**clarity_score** — Communication (very lenient for spoken answers)
+  9-10: Clear and well-structured
+  7-8: Understandable, easy to follow despite informal speech
+  5-6: Understandable with effort — typical for a nervous fresher
+  0-4: Completely incoherent or unrelated rambling
 
-**depth_score** — Depth of knowledge & examples
-  9-10: Expert-level depth, discusses trade-offs
-  7-8: Good depth with concrete examples
-  5-6: Surface-level but shows understanding
-  0-4: Very superficial or just restates the question
+**depth_score** — Depth of knowledge (low bar for freshers)
+  9-10: Good depth with examples or real-world connection
+  7-8: Shows concept understanding even without deep examples
+  5-6: Surface-level answer that shows basic awareness
+  0-4: Just restates the question or says "I don't know"
 
 **relevance_score** — How well the answer addresses the question
-  9-10: Fully addresses all parts of the question
-  7-8: Mostly relevant with minor tangents
+  9-10: Directly and fully answers the question
+  7-8: Mostly on-topic with minor tangents
   5-6: Partially addresses the question
-  0-4: Mostly off-topic or misunderstood the question
+  0-4: Completely off-topic or misunderstood the question
 
 Return ONLY valid JSON (no markdown, no extra text):
 {{
-  "accuracy_score": 6.5,
+  "accuracy_score": 7.0,
   "clarity_score": 7.0,
-  "depth_score": 5.5,
+  "depth_score": 6.5,
   "relevance_score": 7.5,
-  "overall_score": 6.6,
-  "feedback": "2-3 sentence constructive feedback focusing on what was good and what to improve",
+  "overall_score": 7.0,
+  "feedback": "2-3 sentence encouraging feedback. Highlight what was good, then one area to improve gently.",
   "strengths": ["strength 1", "strength 2"],
-  "improvements": ["improvement area 1"],
-  "suggested_followup": "A specific follow-up question if score < 6, else null"
+  "improvements": ["one gentle improvement suggestion"],
+  "suggested_followup": "A simple follow-up question if score < 6, else null"
 }}
 """
 
 
 # ─── 4. Adaptive Follow-up Generation ────────────────────────────────────────
 FOLLOWUP_PROMPT = """
-You are a skilled {job_role} interviewer conducting a follow-up probe.
+You are a friendly {job_role} interviewer helping a FRESHER candidate improve their answer.
 
 ## Original Question Asked:
 {original_question}
@@ -158,12 +167,13 @@ You are a skilled {job_role} interviewer conducting a follow-up probe.
 - Weak Areas: {weak_areas}
 
 ## Your Task:
-Generate ONE targeted follow-up question that:
-1. Specifically probes the weak areas: {weak_areas}
-2. Does NOT repeat the original question
-3. Pushes the candidate to demonstrate deeper knowledge
-4. Is concise and answerable in 1-3 minutes verbally
-5. Feels natural in the flow of conversation
+Generate ONE simple, encouraging follow-up question that:
+1. Gently probes the weak areas: {weak_areas}
+2. Is simpler than the original question — give the candidate a chance to recover
+3. Does NOT repeat the original question
+4. Is concise and easily answerable in 1-2 minutes by a fresher
+5. Feels like a helpful hint, not a challenge
+6. Use phrases like "Can you tell me a bit more about..." or "In simple terms, how would you..."
 
 Return ONLY the follow-up question text. Nothing else. No intro, no explanation.
 """

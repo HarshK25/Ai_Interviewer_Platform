@@ -1133,7 +1133,7 @@ function InterviewPage({ token, session, toast, setPage }) {
         : 'Answer scored!', 'success');
 
       // ── Adaptive follow-up logic ──────────────────────────────────────────
-      const FOLLOWUP_THRESHOLD = 6.0;
+      const FOLLOWUP_THRESHOLD = 5.0; // fresher mode: only follow up on clearly weak answers
       const needsFollowup = !isFollowup &&
         scoreResult.overall_score !== null &&
         scoreResult.overall_score < FOLLOWUP_THRESHOLD;
