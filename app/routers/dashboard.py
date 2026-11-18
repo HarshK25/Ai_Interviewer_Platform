@@ -31,11 +31,11 @@ async def get_dashboard_stats(
         .join(InterviewSession, Score.session_id == InterviewSession.id)
         .where(
             InterviewSession.user_id == current_user.id,
-            Score.overall_score > 0,  # exclude empty/failed scores
+            Score.overall_score.isnot(None),  # exclude NULL scores only
         )
     )
     avg_score = avg_result.scalar()
-    avg_score = round(float(avg_score), 2) if avg_score else None
+    avg_score = round(float(avg_score), 2) if avg_score is not None else None
 
     # Best session score — max average score per session
     best_result = await db.execute(
@@ -43,11 +43,11 @@ async def get_dashboard_stats(
         .join(InterviewSession, Score.session_id == InterviewSession.id)
         .where(
             InterviewSession.user_id == current_user.id,
-            Score.overall_score > 0,
+            Score.overall_score.isnot(None),
         )
     )
     best_score = best_result.scalar()
-    best_score = round(float(best_score), 2) if best_score else None
+    best_score = round(float(best_score), 2) if best_score is not None else None
 
     # Hire recommendations — from Scorecard if available, else derive from avg score
     hire_result = await db.execute(

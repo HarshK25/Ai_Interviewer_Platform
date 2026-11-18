@@ -130,6 +130,7 @@ async def score_answer_rest(
         await db.flush()
 
     # 4. Score with LLM
+    score_failed = False
     try:
         score_data = await scoring_engine.score_answer(
             question=question.question_text,
@@ -138,36 +139,40 @@ async def score_answer_rest(
         )
     except Exception as e:
         logger.error(f"Scoring error: {e}")
+        score_failed = True
         score_data = {
-            "accuracy_score": 0.0,
-            "clarity_score": 0.0,
-            "depth_score": 0.0,
-            "relevance_score": 0.0,
-            "overall_score": 0.0,
+            "accuracy_score": None,
+            "clarity_score": None,
+            "depth_score": None,
+            "relevance_score": None,
+            "overall_score": None,
             "feedback": "Scoring unavailable — check LLM API key configuration.",
             "strengths": [],
             "improvements": [],
         }
 
-    # 5. Persist or update Score row
-    score_result = await db.execute(
-        select(Score).where(Score.answer_id == answer.id)
-    )
-    existing_score = score_result.scalar_one_or_none()
+    # 5. Persist or update Score row (skip if LLM scoring failed)
+    if not score_failed:
+        score_result = await db.execute(
+            select(Score).where(Score.answer_id == answer.id)
+        )
+        existing_score = score_result.scalar_one_or_none()
 
-    if existing_score is None:
-        await scoring_engine.save_score(db, str(answer.id), str(session.id), score_data)
+        if existing_score is None:
+            await scoring_engine.save_score(db, str(answer.id), str(session.id), score_data)
+        else:
+            existing_score.accuracy_score = score_data["accuracy_score"]
+            existing_score.clarity_score = score_data["clarity_score"]
+            existing_score.depth_score = score_data["depth_score"]
+            existing_score.relevance_score = score_data["relevance_score"]
+            existing_score.overall_score = score_data["overall_score"]
+            existing_score.llm_feedback = score_data.get("feedback", "")
+            existing_score.strengths = score_data.get("strengths", [])
+            existing_score.improvements = score_data.get("improvements", [])
+            existing_score.raw_llm_json = score_data
+
+        await db.commit()
     else:
-        existing_score.accuracy_score = score_data["accuracy_score"]
-        existing_score.clarity_score = score_data["clarity_score"]
-        existing_score.depth_score = score_data["depth_score"]
-        existing_score.relevance_score = score_data["relevance_score"]
-        existing_score.overall_score = score_data["overall_score"]
-        existing_score.llm_feedback = score_data.get("feedback", "")
-        existing_score.strengths = score_data.get("strengths", [])
-        existing_score.improvements = score_data.get("improvements", [])
-        existing_score.raw_llm_json = score_data
-
-    await db.commit()
+        await db.commit()  # commit the Answer row at minimum
 
     return score_data

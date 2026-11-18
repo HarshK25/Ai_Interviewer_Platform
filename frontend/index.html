@@ -522,12 +522,18 @@ function ToastContainer({ toasts, remove }) {
 }
 function useToast() {
   const [toasts, setToasts] = useState([]);
+  const counterRef = useRef(0);
   const add = useCallback((msg, type = 'info') => {
-    const id = Date.now();
-    setToasts(p => [...p, { id, msg, type }]);
+    const id = ++counterRef.current;
+    // Keep max 3 toasts to avoid pile-up
+    setToasts(p => {
+      const next = [...p, { id, msg, type }];
+      return next.length > 3 ? next.slice(next.length - 3) : next;
+    });
   }, []);
   const remove = useCallback((id) => setToasts(p => p.filter(t => t.id !== id)), []);
-  return { toasts, add, remove };
+  const clear = useCallback(() => setToasts([]), []);
+  return { toasts, add, remove, clear };
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
@@ -1022,6 +1028,11 @@ function InterviewPage({ token, session, toast, setPage }) {
   const [cameraOn, setCameraOn] = useState(false);
   const [phase, setPhase] = useState('ready'); // ready | interviewing | complete
   const [transcript, setTranscript] = useState('');
+  // ── Adaptive follow-up state ────────────────────────────────────────────────
+  const [followupQuestion, setFollowupQuestion] = useState(null);  // text of follow-up
+  const [isFollowup, setIsFollowup] = useState(false);             // currently on follow-up?
+  const [loadingFollowup, setLoadingFollowup] = useState(false);
+  // ───────────────────────────────────────────────────────────────────────────
   const videoRef = useRef();
   const mediaRecorderRef = useRef();
   const chunksRef = useRef([]);
@@ -1105,25 +1116,76 @@ function InterviewPage({ token, session, toast, setPage }) {
         toast('Transcription was empty — please speak clearly and try again', 'error');
         setSubmitting(false); return;
       }
+
+      const sid = session.id || session.session_id;
+      const qid = isFollowup ? questions[current].id : questions[current].id;
+
       const scoreResult = await api.post('/scoring/score-answer', {
-        session_id: session.id || session.session_id,
-        question_id: questions[current].id,
+        session_id: sid,
+        question_id: qid,
         transcript: tx,
       }, token).catch(() => ({ overall_score: null, feedback: 'Scoring unavailable — check API key' }));
 
-      setScores(p => ({ ...p, [current]: { ...scoreResult, transcript: tx } }));
-      toast('Answer scored!', 'success');
+      setScores(p => ({ ...p, [isFollowup ? `${current}-followup` : current]: { ...scoreResult, transcript: tx, isFollowup } }));
+      const scoreVal = scoreResult.overall_score;
+      toast(scoreVal !== null && scoreVal !== undefined
+        ? `Answer scored: ${scoreVal.toFixed(1)}/10`
+        : 'Answer scored!', 'success');
 
-      // Next question or complete
-      if (current < questions.length - 1) {
-        setTimeout(() => { setCurrent(p => p+1); setTranscript(''); }, 800);
+      // ── Adaptive follow-up logic ──────────────────────────────────────────
+      const FOLLOWUP_THRESHOLD = 6.0;
+      const needsFollowup = !isFollowup &&
+        scoreResult.overall_score !== null &&
+        scoreResult.overall_score < FOLLOWUP_THRESHOLD;
+
+      if (needsFollowup) {
+        // Score was low — generate a targeted follow-up question
+        setIsFollowup(true);
+        setLoadingFollowup(true);
+        setTranscript('');
+        toast(`Score was ${scoreResult.overall_score?.toFixed(1)}/10 — generating follow-up question...`, 'info');
+        try {
+          const fq = await api.post(`/interview/sessions/${sid}/followup`, {
+            question_id: questions[current].id,
+            overall_score: scoreResult.overall_score,
+            accuracy_score: scoreResult.accuracy_score || 5,
+            clarity_score: scoreResult.clarity_score || 5,
+            depth_score: scoreResult.depth_score || 5,
+            relevance_score: scoreResult.relevance_score || 5,
+            candidate_answer: tx,
+          }, token);
+          setFollowupQuestion(fq.followup_text);
+          toast('Follow-up question ready — answer it to improve your score!', 'info');
+        } catch(e) {
+          toast('Could not generate follow-up — moving to next question', 'info');
+          setIsFollowup(false);
+          moveToNextQuestion(current, questions);
+        } finally {
+          setLoadingFollowup(false);
+        }
       } else {
-        setPhase('complete');
-        toast('Interview complete! Generating scorecard...', 'success');
-        // Mark session complete
-        await api.post(`/interview/sessions/${session.id}/complete`, {}, token).catch(() => {});
+        // Good score OR already on a follow-up — move to next main question
+        setIsFollowup(false);
+        setFollowupQuestion(null);
+        moveToNextQuestion(current, questions);
       }
+      // ──────────────────────────────────────────────────────────────────────
     } catch(e) { toast(e.message, 'error'); } finally { setSubmitting(false); }
+  };
+
+  const moveToNextQuestion = (cur, qs) => {
+    if (cur < qs.length - 1) {
+      setTimeout(() => { setCurrent(p => p + 1); setTranscript(''); }, 800);
+    } else {
+      completeInterview();
+    }
+  };
+
+  const completeInterview = async () => {
+    setPhase('complete');
+    toast('Interview complete! Generating scorecard...', 'success');
+    const sid = session.id || session.session_id;
+    await api.post(`/interview/sessions/${sid}/complete`, {}, token).catch(() => {});
   };
 
   const scoreColor = (s) => {
@@ -1215,13 +1277,41 @@ function InterviewPage({ token, session, toast, setPage }) {
           {/* Question */}
           <div className="question-box">
             <div className="question-num">Question {current + 1} of {questions.length}</div>
-            <div className="question-text">{q?.question_text}</div>
-            {q?.question_type && (
-              <div style={{marginTop:'1rem', display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
-                <span className="question-type-badge">{q.question_type}</span>
-                {q.difficulty && <span className="question-type-badge" style={{background:'rgba(245,158,11,0.1)', color:'#fcd34d', borderColor:'rgba(245,158,11,0.2)'}}>{q.difficulty}</span>}
+
+            {/* Follow-up badge + question OR regular question */}
+            {loadingFollowup ? (
+              <div style={{textAlign:'center', padding:'2rem', color:'var(--text-muted)'}}>
+                <div style={{fontSize:'1.5rem', marginBottom:'0.5rem'}}>🤔</div>
+                <p>Generating follow-up question based on your answer...</p>
               </div>
+            ) : isFollowup && followupQuestion ? (
+              <>
+                <div style={{
+                  display:'inline-flex', alignItems:'center', gap:'0.5rem',
+                  background:'rgba(245,158,11,0.15)', color:'#fcd34d',
+                  border:'1px solid rgba(245,158,11,0.3)',
+                  borderRadius:'20px', padding:'4px 14px',
+                  fontSize:'0.78rem', fontWeight:'700', marginBottom:'0.75rem'
+                }}>
+                  🔄 FOLLOW-UP — Score was low, dig deeper!
+                </div>
+                <div className="question-text">{followupQuestion}</div>
+                <div style={{marginTop:'0.5rem', fontSize:'0.8rem', color:'var(--text-muted)'}}>
+                  💡 Address the specific gaps in your previous answer to improve your score
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="question-text">{q?.question_text}</div>
+                {q?.question_type && (
+                  <div style={{marginTop:'1rem', display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+                    <span className="question-type-badge">{q.question_type}</span>
+                    {q.difficulty && <span className="question-type-badge" style={{background:'rgba(245,158,11,0.1)', color:'#fcd34d', borderColor:'rgba(245,158,11,0.2)'}}>{q.difficulty}</span>}
+                  </div>
+                )}
+              </>
             )}
+
             {transcript && (
               <div style={{marginTop:'1.25rem', background:'var(--bg3)', borderRadius:'10px', padding:'1rem', borderLeft:'3px solid var(--primary)'}}>
                 <div style={{fontSize:'0.75rem', color:'var(--primary-light)', fontWeight:'700', marginBottom:'0.4rem', textTransform:'uppercase'}}>Your Answer (Transcribed)</div>
@@ -1232,12 +1322,21 @@ function InterviewPage({ token, session, toast, setPage }) {
 
           {/* Controls */}
           <div className="record-controls">
-            <button className={`record-btn ${recording ? 'recording' : 'idle'}`} onClick={recording ? () => {} : startRecording} disabled={submitting}>
+            <button className={`record-btn ${recording ? 'recording' : 'idle'}`}
+              onClick={recording ? () => {} : startRecording}
+              disabled={submitting || loadingFollowup}>
               {recording ? '⏹' : '🎙️'}
             </button>
             <div className="record-info">
-              <div className="record-status">{submitting ? 'Processing answer...' : recording ? 'Recording... speak your answer' : 'Ready to record'}</div>
-              <div className="record-hint">{recording ? 'Click Submit when done' : 'Click the mic button to start recording'}</div>
+              <div className="record-status">
+                {loadingFollowup ? 'Generating follow-up question...' :
+                 submitting ? 'Processing answer...' :
+                 recording ? 'Recording... speak your answer' : 'Ready to record'}
+              </div>
+              <div className="record-hint">
+                {loadingFollowup ? 'Please wait...' :
+                 recording ? 'Click Submit when done' : 'Click the mic button to start recording'}
+              </div>
             </div>
             {recording && (
               <button className="btn-primary" onClick={submitAnswer} disabled={submitting} style={{padding:'10px 20px'}}>
@@ -1323,39 +1422,44 @@ function App() {
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('ai_user')); } catch { return null; } });
   const [token, setToken] = useState(() => localStorage.getItem('ai_token') || '');
   const [currentSession, setCurrentSession] = useState(null);
-  const { toasts, add: toast, remove } = useToast();
+  const { toasts, add: toast, remove, clear: clearToasts } = useToast();
+
+  // Clear stale toasts on every page transition
+  const navigate = useCallback((p) => { clearToasts(); setPage(p); }, [clearToasts]);
 
   const onLogin = (u, t) => {
     setUser(u); setToken(t);
     localStorage.setItem('ai_user', JSON.stringify(u));
     localStorage.setItem('ai_token', t);
+    clearToasts();
     setPage('dashboard');
   };
   const onLogout = () => {
     setUser(null); setToken('');
     localStorage.removeItem('ai_user'); localStorage.removeItem('ai_token');
+    clearToasts();
     setPage('home');
   };
 
   const renderPage = () => {
     if (!user && ['dashboard','upload','new-session','interview','session-detail'].includes(page)) {
-      return <LoginPage setPage={setPage} onLogin={onLogin} toast={toast}/>;
+      return <LoginPage setPage={navigate} onLogin={onLogin} toast={toast}/>;
     }
     switch(page) {
-      case 'home': return <HomePage setPage={setPage}/>;
-      case 'login': return <LoginPage setPage={setPage} onLogin={onLogin} toast={toast}/>;
-      case 'register': return <RegisterPage setPage={setPage} onLogin={onLogin} toast={toast}/>;
-      case 'dashboard': return <DashboardPage token={token} setPage={setPage} setCurrentSession={setCurrentSession} toast={toast}/>;
-      case 'upload': return <UploadPage token={token} toast={toast} setPage={setPage}/>;
-      case 'new-session': return <NewSessionPage token={token} toast={toast} setPage={setPage} setCurrentSession={setCurrentSession}/>;
-      case 'interview': return <InterviewPage token={token} session={currentSession} toast={toast} setPage={setPage}/>;
-      default: return <HomePage setPage={setPage}/>;
+      case 'home': return <HomePage setPage={navigate}/>;
+      case 'login': return <LoginPage setPage={navigate} onLogin={onLogin} toast={toast}/>;
+      case 'register': return <RegisterPage setPage={navigate} onLogin={onLogin} toast={toast}/>;
+      case 'dashboard': return <DashboardPage token={token} setPage={navigate} setCurrentSession={setCurrentSession} toast={toast}/>;
+      case 'upload': return <UploadPage token={token} toast={toast} setPage={navigate}/>;
+      case 'new-session': return <NewSessionPage token={token} toast={toast} setPage={navigate} setCurrentSession={setCurrentSession}/>;
+      case 'interview': return <InterviewPage token={token} session={currentSession} toast={toast} setPage={navigate}/>;
+      default: return <HomePage setPage={navigate}/>;
     }
   };
 
   return (
     <>
-      <Navbar page={page} setPage={setPage} user={user} onLogout={onLogout}/>
+      <Navbar page={page} setPage={navigate} user={user} onLogout={onLogout}/>
       <div style={{animation:'fadeInUp 0.4s ease'}}>
         {renderPage()}
       </div>
